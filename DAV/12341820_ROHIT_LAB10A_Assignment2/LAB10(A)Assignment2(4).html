@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D3.js - Data Binding</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <ul id="fruit-list"></ul>
+
+    <script>
+        // Data array
+        const fruits = ["Apple", "Banana", "Cherry", "Pineapple", "Mango"];
+
+        // Select the <ul> and bind data to <li> elements
+        d3.select("#fruit-list")
+          .selectAll("li")
+          .data(fruits)
+          .enter()
+          .append("li")
+          .text(d => d);
+    </script>
+</body>
+</html>

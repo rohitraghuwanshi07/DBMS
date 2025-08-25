@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Adding an Axis with D3.js</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+
+    <!-- SVG for the X-axis -->
+    <svg id="axisSvg" width="500" height="100"></svg>
+
+    <script>
+        // Define the xScale mapping [0,100] → [0,400]
+        const xScale = d3.scaleLinear()
+            .domain([0, 100])
+            .range([0, 400]);
+
+        // Create the bottom X-axis
+        const xAxis = d3.axisBottom(xScale);
+
+        // Append the axis to the SVG and position it
+        d3.select("#axisSvg")
+            .append("g")
+            .attr("transform", "translate(50,50)")  // Offset to avoid edge clipping
+            .call(xAxis);
+    </script>
+
+</body>
+</html>

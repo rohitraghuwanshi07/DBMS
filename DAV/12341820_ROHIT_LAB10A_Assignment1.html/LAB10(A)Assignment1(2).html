@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>D3 Append and Remove</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+
+    <div id="container"></div>
+
+    <script>
+        // Select the div and append an <h2> element
+        const heading = d3.select("#container")
+            .append("h2")
+            .text("New Heading");
+
+        // Remove the <h2> element after 3 seconds
+        setTimeout(() => {
+            heading.remove();
+        }, 3000);
+    </script>
+
+</body>
+</html>
+

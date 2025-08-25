@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SVG Circle with D3.js</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+
+    <!-- SVG for the circle -->
+    <svg id="circleSvg" width="200" height="200"></svg>
+
+    <script>
+        // Select the SVG and append a circle inside it
+        d3.select("#circleSvg")
+            .append("circle")
+            .attr("cx", 100)  // X position of the center
+            .attr("cy", 100)  // Y position of the center
+            .attr("r", 50)    // Radius of the circle
+            .attr("fill", "red");  // Fill color
+    </script>
+
+</body>
+</html>
