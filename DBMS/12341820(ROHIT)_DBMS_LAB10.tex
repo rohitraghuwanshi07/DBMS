@@ -1,0 +1,288 @@
+
+-- QUESTION 1: Recursive CTE for Hierarchical Data
+
+WITH RECURSIVE EmployeeHierarchy AS (
+    -- Base case: Select the CEO (employee with no manager)
+    SELECT 
+        employee_id,
+        employee_name,
+        manager_id,
+        1 AS level,
+        CAST(employee_name AS VARCHAR(1000)) AS hierarchy_path
+    FROM employees
+    WHERE manager_id IS NULL
+    
+    UNION ALL
+    
+    -- Recursive case: Select employees who report to employees already in the CTE
+    SELECT 
+        e.employee_id,
+        e.employee_name,
+        e.manager_id,
+        eh.level + 1 AS level,
+        CAST(CONCAT(eh.hierarchy_path, ' -> ', e.employee_name) AS VARCHAR(1000)) AS hierarchy_path
+    FROM employees e
+    INNER JOIN EmployeeHierarchy eh ON e.manager_id = eh.employee_id
+)
+SELECT 
+    employee_id,
+    employee_name,
+    manager_id,
+    level,
+    REPEAT('  ', level - 1) || employee_name AS indented_name,
+    hierarchy_path
+FROM EmployeeHierarchy
+ORDER BY level, employee_name;
+
+-- QUESTION 2: Window Functions for Trend Analysis
+
+WITH SalesWithLag AS (
+    SELECT 
+        sale_id,
+        product_id,
+        sale_date,
+        sale_amount,
+        -- Previous day's sale amount for the same product
+        LAG(sale_amount, 1) OVER (
+            PARTITION BY product_id 
+            ORDER BY sale_date
+        ) AS prev_day_amount
+    FROM sales
+),
+SalesWithMovingAvg AS (
+    SELECT 
+        sale_id,
+        product_id,
+        sale_date,
+        sale_amount,
+        prev_day_amount,
+        -- 7-day moving average
+        AVG(sale_amount) OVER (
+            PARTITION BY product_id 
+            ORDER BY sale_date 
+            ROWS BETWEEN 6 PRECEDING AND CURRENT ROW
+        ) AS moving_avg_7day,
+        -- Percentage change from previous day
+        CASE 
+            WHEN prev_day_amount IS NOT NULL AND prev_day_amount != 0 
+            THEN ((sale_amount - prev_day_amount) / prev_day_amount) * 100
+            ELSE NULL
+        END AS pct_change_from_prev_day
+    FROM SalesWithLag
+)
+SELECT 
+    sale_id,
+    product_id,
+    sale_date,
+    sale_amount,
+    ROUND(moving_avg_7day, 2) AS moving_avg_7day,
+    ROUND(pct_change_from_prev_day, 2) AS pct_change
+FROM SalesWithMovingAvg
+ORDER BY product_id, sale_date;
+
+
+-- QUESTION 3: Indexing Strategy
+
+/*
+RECOMMENDED INDEXES:
+
+1. Composite Index on customers table:
+   CREATE INDEX idx_customers_segment ON customers(customer_segment);
+   
+   Reason: Filters customers by 'Premium' segment in WHERE clause.
+
+2. Composite Index on products table:
+   CREATE INDEX idx_products_category ON products(product_category);
+   
+   Reason: Filters products by 'Electronics' category in WHERE clause.
+
+3. Composite Index on orders table:
+   CREATE INDEX idx_orders_date_customer_product 
+   ON orders(order_date, customer_id, product_id);
+   
+   Reason: Filters by date range and used for joins with customers and products.
+
+4. COVERING INDEX (for maximum performance):
+   CREATE INDEX idx_orders_covering 
+   ON orders(order_date, customer_id, product_id)
+   INCLUDE (order_date);
+   
+   CREATE INDEX idx_customers_covering 
+   ON customers(customer_segment, customer_id)
+   INCLUDE (customer_name);
+   
+   CREATE INDEX idx_products_covering 
+   ON products(product_category, product_id)
+   INCLUDE (product_name);
+
+COVERING INDEX CONCEPT:
+A covering index is an index that contains ALL the columns needed by a query,
+allowing the database to satisfy the entire query using only the index without
+accessing the actual table data (no table lookups needed).
+
+Benefits:
+- Eliminates expensive table lookups
+- Reduces I/O operations significantly
+- Improves query performance dramatically
+
+In this query, covering indexes would include:
+- All columns used in WHERE clauses (for filtering)
+- All columns used in JOIN conditions (for matching)
+- All columns in SELECT clause (for output)
+
+This allows the database engine to retrieve all needed data directly from
+the indexes, making the query much faster.
+
+QUERY EXECUTION WITH COVERING INDEXES:
+1. Scan idx_customers_covering for customer_segment = 'Premium'
+2. Scan idx_products_covering for product_category = 'Electronics'
+3. Scan idx_orders_covering for date range and join matches
+4. No table access needed - all data comes from indexes
+*/
+
+
+-- QUESTION 4: MongoDB Aggregation Pipeline
+
+/*
+db.articles.aggregate([
+    // 4.a. Filter for articles with more than 1000 views
+    {
+        $match: {
+            views: { $gt: 1000 }
+        }
+    },
+    
+    // 4.b. Unwind the tags array
+    {
+        $unwind: "$tags"
+    },
+    
+    // Add a field for total comments and total likes per article
+    {
+        $addFields: {
+            total_comments: { $size: "$comments" },
+            total_likes: {
+                $sum: "$comments.likes"
+            }
+        }
+    },
+    
+    // 4.c. Group by tag to find averages
+    {
+        $group: {
+            _id: "$tags",
+            avg_comments: { $avg: "$total_comments" },
+            avg_likes: { $avg: "$total_likes" },
+            article_count: { $sum: 1 }
+        }
+    },
+    
+    // 4.d. Sort by average likes in descending order
+    {
+        $sort: {
+            avg_likes: -1
+        }
+    },
+    
+    // Optional: Format the output
+    {
+        $project: {
+            _id: 0,
+            tag: "$_id",
+            avg_comments: { $round: ["$avg_comments", 2] },
+            avg_likes: { $round: ["$avg_likes", 2] },
+            article_count: 1
+        }
+    }
+])
+*/
+
+-- QUESTION 5: MongoDB Geospatial Queries
+
+/*
+PART 1: Creating a 2dsphere Index
+
+A 2dsphere index supports queries that calculate geometries on an earth-like sphere.
+It's used for GeoJSON objects and legacy coordinate pairs.
+
+To create a 2dsphere index on the location field:
+
+db.restaurants.createIndex({ location: "2dsphere" })
+
+Explanation:
+- The "2dsphere" index type is specifically designed for geospatial queries
+- It supports GeoJSON objects (Point, LineString, Polygon, etc.)
+- It enables queries like $near, $geoWithin, $geoIntersects
+- The index improves performance of geospatial queries significantly
+
+
+PART 2: Query to Find Restaurants Within 5km Radius
+
+Method 1: Using $near (returns sorted by distance)
+
+db.restaurants.find({
+    location: {
+        $near: {
+            $geometry: {
+                type: "Point",
+                coordinates: [-73.98, 40.77]
+            },
+            $maxDistance: 5000  // Distance in meters (5km = 5000m)
+        }
+    }
+})
+
+Method 2: Using $geoWithin and $centerSphere
+
+db.restaurants.find({
+    location: {
+        $geoWithin: {
+            $centerSphere: [
+                [-73.98, 40.77],  // [longitude, latitude]
+                5 / 6378.1         // radius in radians (5km / Earth's radius)
+            ]
+        }
+    }
+})
+
+Method 3: Using $nearSphere (more accurate for spherical calculations)
+
+db.restaurants.find({
+    location: {
+        $nearSphere: {
+            $geometry: {
+                type: "Point",
+                coordinates: [-73.98, 40.77]
+            },
+            $maxDistance: 5000  // Distance in meters
+        }
+    }
+})
+
+RECOMMENDED: Method 1 ($near) is most commonly used because:
+- It automatically sorts results by distance
+- It's efficient with the 2dsphere index
+- It's straightforward to specify distance in meters
+- It returns documents in order from nearest to farthest
+
+Example with additional fields and limit:
+
+db.restaurants.find(
+    {
+        location: {
+            $near: {
+                $geometry: {
+                    type: "Point",
+                    coordinates: [-73.98, 40.77]
+                },
+                $maxDistance: 5000
+            }
+        }
+    },
+    {
+        name: 1,
+        location: 1,
+        _id: 0
+    }
+).limit(10)
+*/

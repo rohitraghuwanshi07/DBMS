@@ -1,0 +1,242 @@
+
+
+-- ---
+-- 1. HELPER VIEWS
+-- ---
+
+-- Drop views if they already exist to allow re-running the script
+DROP VIEW IF EXISTS ValidLeg;
+DROP VIEW IF EXISTS TerminusStations;
+
+-- Helper View 1: Terminus Stations
+-- This view just isolates the terminus station codes for easy joins.
+CREATE VIEW TerminusStations AS
+SELECT station
+FROM terminus;
+
+-- Helper View 2: Valid Legs
+-- This view finds every possible direct leg of a journey on a single train.
+-- It combines date and time into a DATETIME stamp for easy comparison.
+CREATE VIEW ValidLeg AS
+SELECT
+    s1.train,
+    s1.station AS start_station,
+    TIMESTAMP(DATE_ADD('1970-01-01', INTERVAL s1.depdate DAY), s1.dep) AS dep_datetime,
+    s2.station AS end_station,
+    TIMESTAMP(DATE_ADD('1970-01-01', INTERVAL s2.arrdate DAY), s2.arr) AS arr_datetime
+FROM
+    schedule s1
+JOIN
+    schedule s2 ON s1.train = s2.train
+WHERE
+    s1.dep IS NOT NULL
+    AND s2.arr IS NOT NULL
+    -- Ensure the arrival is strictly after the departure on the same train
+    AND TIMESTAMP(DATE_ADD('1970-01-01', INTERVAL s1.depdate DAY), s1.dep) < 
+        TIMESTAMP(DATE_ADD('1970-01-01', INTERVAL s2.arrdate DAY), s2.arr);
+
+
+-- ---
+-- 2. TASK 1 QUERY (At most 2 changes)
+-- ---
+-- This query uses the helper views to find all routes with 0, 1, or 2 changes.
+-- The output table will be:
+-- (StationA, StationB, Train1, Change1, Train2, Change2, Train3)
+
+SELECT
+    vl.start_station AS StationA,
+    vl.end_station AS StationB,
+    vl.train AS Train1,
+    NULL AS Change1,
+    NULL AS Train2,
+    NULL AS Change2,
+    NULL AS Train3
+FROM
+    ValidLeg vl
+WHERE
+    vl.start_station IN (SELECT station FROM TerminusStations)
+    AND vl.end_station IN (SELECT station FROM TerminusStations)
+    AND vl.start_station != vl.end_station  -- A != B
+
+UNION ALL
+
+-- 1 Change
+SELECT
+    l1.start_station AS StationA,
+    l2.end_station AS StationB,
+    l1.train AS Train1,
+    l1.end_station AS Change1,
+    l2.train AS Train2,
+    NULL AS Change2,
+    NULL AS Train3
+FROM
+    ValidLeg l1
+JOIN
+    ValidLeg l2 ON l1.end_station = l2.start_station
+WHERE
+    l1.start_station IN (SELECT station FROM TerminusStations)
+    AND l2.end_station IN (SELECT station FROM TerminusStations)
+    AND l1.arr_datetime < l2.dep_datetime  -- Valid change time
+    AND l1.train != l2.train  -- Different trains
+    -- Ensure stations are distinct (A != B, A != C1, B != C1)
+    AND l1.start_station != l2.end_station
+    AND l1.start_station != l1.end_station
+    AND l2.end_station != l1.end_station
+
+UNION ALL
+
+-- 2 Changes
+SELECT
+    l1.start_station AS StationA,
+    l3.end_station AS StationB,
+    l1.train AS Train1,
+    l1.end_station AS Change1,
+    l2.train AS Train2,
+    l2.end_station AS Change2,
+    l3.train AS Train3
+FROM
+    ValidLeg l1
+JOIN
+    ValidLeg l2 ON l1.end_station = l2.start_station
+JOIN
+    ValidLeg l3 ON l2.end_station = l3.start_station
+WHERE
+    l1.start_station IN (SELECT station FROM TerminusStations)
+    AND l3.end_station IN (SELECT station FROM TerminusStations)
+    -- Check train change times
+    AND l1.arr_datetime < l2.dep_datetime
+    AND l2.arr_datetime < l3.dep_datetime
+    -- Check trains are distinct
+    AND l1.train != l2.train
+    AND l2.train != l3.train
+    -- Ensure stations are distinct (A, B, C1, C2)
+    AND l1.start_station != l3.end_station  -- A != B
+    AND l1.start_station != l1.end_station  -- A != C1
+    AND l1.start_station != l2.end_station  -- A != C2
+    AND l3.end_station != l1.end_station  -- B != C1
+    AND l3.end_station != l2.end_station  -- B != C2
+    AND l1.end_station != l2.end_station; -- C1 != C2
+
+
+-- ---
+-- 3. TASK 2 QUERY (At most 3 changes)
+-- ---
+-- This query uses the helper views to find all routes with 0, 1, 2, or 3 changes.
+-- The output table will be:
+-- (StationA, StationB, Train1, Change1, Train2, Change2, Train3, Change3, Train4)
+
+SELECT
+    vl.start_station AS StationA,
+    vl.end_station AS StationB,
+    vl.train AS Train1,
+    NULL AS Change1,
+    NULL AS Train2,
+    NULL AS Change2,
+    NULL AS Train3,
+    NULL AS Change3,
+    NULL AS Train4
+FROM
+    ValidLeg vl
+WHERE
+    vl.start_station IN (SELECT station FROM TerminusStations)
+    AND vl.end_station IN (SELECT station FROM TerminusStations)
+    AND vl.start_station != vl.end_station  -- A != B
+
+UNION ALL
+
+-- 1 Change
+SELECT
+    l1.start_station AS StationA,
+    l2.end_station AS StationB,
+    l1.train AS Train1,
+    l1.end_station AS Change1,
+    l2.train AS Train2,
+    NULL AS Change2,
+    NULL AS Train3,
+    NULL AS Change3,
+    NULL AS Train4
+FROM
+    ValidLeg l1
+JOIN
+    ValidLeg l2 ON l1.end_station = l2.start_station
+WHERE
+    l1.start_station IN (SELECT station FROM TerminusStations)
+    AND l2.end_station IN (SELECT station FROM TerminusStations)
+    AND l1.arr_datetime < l2.dep_datetime
+    AND l1.train != l2.train
+    AND l1.start_station != l2.end_station
+    AND l1.start_station != l1.end_station
+    AND l2.end_station != l1.end_station
+
+UNION ALL
+
+-- 2 Changes
+SELECT
+    l1.start_station AS StationA,
+    l3.end_station AS StationB,
+    l1.train AS Train1,
+    l1.end_station AS Change1,
+    l2.train AS Train2,
+    l2.end_station AS Change2,
+    l3.train AS Train3,
+    NULL AS Change3,
+    NULL AS Train4
+FROM
+    ValidLeg l1
+JOIN
+    ValidLeg l2 ON l1.end_station = l2.start_station
+JOIN
+    ValidLeg l3 ON l2.end_station = l3.start_station
+WHERE
+    l1.start_station IN (SELECT station FROM TerminusStations)
+    AND l3.end_station IN (SELECT station FROM TerminusStations)
+    AND l1.arr_datetime < l2.dep_datetime
+    AND l2.arr_datetime < l3.dep_datetime
+    AND l1.train != l2.train
+    AND l2.train != l3.train
+    AND l1.start_station != l3.end_station
+    AND l1.start_station != l1.end_station
+    AND l1.start_station != l2.end_station
+    AND l3.end_station != l1.end_station
+    AND l3.end_station != l2.end_station
+    AND l1.end_station != l2.end_station
+
+UNION ALL
+
+-- 3 Changes
+SELECT
+    l1.start_station AS StationA,
+    l4.end_station AS StationB,
+    l1.train AS Train1,
+    l1.end_station AS Change1,
+    l2.train AS Train2,
+    l2.end_station AS Change2,
+    l3.train AS Train3,
+    l3.end_station AS Change3,
+    l4.train AS Train4
+FROM
+    ValidLeg l1
+JOIN
+    ValidLeg l2 ON l1.end_station = l2.start_station
+JOIN
+    ValidLeg l3 ON l2.end_station = l3.start_station
+JOIN
+    ValidLeg l4 ON l3.end_station = l4.start_station
+WHERE
+    l1.start_station IN (SELECT station FROM TerminusStations)
+    AND l4.end_station IN (SELECT station FROM TerminusStations)
+    -- Check train change times
+    AND l1.arr_datetime < l2.dep_datetime
+    AND l2.arr_datetime < l3.dep_datetime
+    AND l3.arr_datetime < l4.dep_datetime
+    -- Check trains are distinct
+    AND l1.train != l2.train
+    AND l2.train != l3.train
+    AND l3.train != l4.train
+    -- Ensure stations are distinct (A, B, C1, C2, C3)
+    AND l1.start_station != l4.end_station  -- A != B
+    AND l1.start_station NOT IN (l1.end_station, l2.end_station, l3.end_station) -- A not in {C1, C2, C3}
+    AND l4.end_station NOT IN (l1.end_station, l2.end_station, l3.end_station) -- B not in {C1, C2, C3}
+    AND l1.end_station != l2.end_station  -- C1 != C2
+    AND l1.end_station != l3.end_station  -- C1 != C3
+    AND l2.end_station != l3.end_station; -- C2 != C3
